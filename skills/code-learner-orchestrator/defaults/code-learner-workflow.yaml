@@ -1,0 +1,28 @@
+workflow:
+  name: code-learner-workflow
+  description: Multi-phase codebase analysis for engineer onboarding. Detects language, maps modules, analyzes each module in parallel, discovers cross-module relationships, and synthesizes an onboarding guide.
+
+  steps:
+    - name: detection
+      skill: code-learner:code-learner-detection
+      description: Detect primary language, walk file tree, read config files
+
+    - name: module-registry
+      skill: code-learner:code-learner-registry
+      description: Produce per-module registry with tailored analysis questions
+      inputs: [detection]
+
+    - name: module-analysis
+      skill: code-learner:code-learner-module-analysis
+      description: Parallel per-module deep analysis (fan-out one agent per module)
+      inputs: [module-registry]
+
+    - name: relationships
+      skill: code-learner:code-learner-relationships
+      description: Cross-module relationship analysis (fan-out one agent per dep pair)
+      inputs: [module-analysis]
+
+    - name: synthesis
+      skill: code-learner:code-learner-synthesis
+      description: Combine all results into ONBOARDING.md
+      inputs: [module-analysis, relationships]

@@ -1,7 +1,7 @@
 ---
 name: query-code
 description: Answer questions about a previously analyzed codebase. Reads learn-code output and dispatches an agent that can also Read/Grep the actual source code to provide file:line-grounded answers.
-argument-hint: <question> [--repo <path>]
+argument-hint: <question> [--repo <path|url>]
 allowed-tools: Read, Write, Bash, Glob, Grep, Skill, Agent
 ---
 
@@ -13,6 +13,7 @@ Takes a natural-language question about a codebase, loads the analysis data prod
 
 ```
 /code-learner:query-code "How does authentication work?" --repo /path/to/repo
+/code-learner:query-code "How does authentication work?" --repo https://github.com/user/repo
 /code-learner:query-code "What modules depend on the database layer?"
 /code-learner:query-code "Where is the HTTP routing configured?" --repo /path/to/my-api
 ```
@@ -20,7 +21,7 @@ Takes a natural-language question about a codebase, loads the analysis data prod
 ## Arguments
 
 - `$1` — The question to answer (required, can be a quoted string)
-- `--repo <path>` — Path to the repository (optional if only one analysis exists)
+- `--repo <path|url>` — Path or URL of the repository (optional if only one analysis exists). Accepts a local filesystem path or a git remote URL (`https://`, `git@`, `git://`). Git URLs are cloned to `.agent_workspace/<repo-name>/_clone/`.
 
 ## Execution
 
@@ -33,6 +34,29 @@ If the question is empty, STOP and report: `"Please provide a question about the
 ### 2. Resolve analysis data
 
 **If `--repo` is provided:**
+
+**If the value is a git URL** (matches `https://`, `http://`, `git@`, or `git://`):
+
+1. Derive `REPO_NAME` from the URL: strip any trailing `.git`, then take the last path segment (e.g., `https://github.com/user/my-project.git` → `my-project`).
+2. Set paths:
+
+```bash
+GIT_ROOT="$(cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)" && pwd)"
+BASE_PATH="${GIT_ROOT}/.agent_workspace/${REPO_NAME}"
+CLONE_DIR="${BASE_PATH}/_clone"
+```
+
+3. If `${CLONE_DIR}` already exists and is a git repo, use it as the repo path.
+4. If `${CLONE_DIR}` does not exist and an analysis already exists at `${BASE_PATH}`, proceed without a clone (the analysis data is sufficient for querying, though file:line inspection will be limited).
+5. If neither the clone nor analysis exists, clone:
+
+```bash
+git clone --depth 1 "<URL>" "${CLONE_DIR}"
+```
+
+Then offer to run `learn-code` (see step 3 below).
+
+**If the value is a local path:**
 
 Resolve to absolute path. Derive `REPO_NAME` from basename. Set:
 

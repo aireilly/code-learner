@@ -1,7 +1,7 @@
 ---
 name: learn-code
 description: Analyze a codebase for engineer onboarding. Detects language, maps modules, analyzes each module in parallel, discovers cross-module relationships, and produces an ONBOARDING.md guide.
-argument-hint: <repo-path> [--exclude <glob>...]
+argument-hint: <repo-path-or-url> [--exclude <glob>...]
 allowed-tools: Read, Write, Bash, Glob, Grep, Agent
 ---
 
@@ -13,12 +13,14 @@ Single-skill pipeline that detects language, maps modules, analyzes each module 
 
 ```
 /code-learner:learn-code /path/to/repo
+/code-learner:learn-code https://github.com/user/repo
+/code-learner:learn-code git@github.com:user/repo.git
 /code-learner:learn-code /path/to/repo --exclude "test/*" "vendor/*"
 ```
 
 ## Arguments
 
-- `$1` — Path to the repository to analyze (required)
+- `$1` — Path or URL of the repository to analyze (required). Accepts a local filesystem path or a git remote URL (`https://`, `git@`, `git://`). Git URLs are cloned to `.agent_workspace/<repo-name>/_clone/`.
 - `--exclude <glob>...` — Glob patterns to exclude from analysis
 
 ## Pre-flight
@@ -26,6 +28,31 @@ Single-skill pipeline that detects language, maps modules, analyzes each module 
 ### 1. Parse and validate arguments
 
 Extract the repo path from the first positional argument. Extract any `--exclude` patterns.
+
+### 2. Resolve repo path
+
+**If the argument is a git URL** (matches `https://`, `http://`, `git@`, or `git://`):
+
+1. Derive `REPO_NAME` from the URL: strip any trailing `.git`, then take the last path segment (e.g., `https://github.com/user/my-project.git` → `my-project`, `git@github.com:user/my-project` → `my-project`).
+2. Set the clone destination:
+
+```bash
+GIT_ROOT="$(cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)" && pwd)"
+CLONE_DIR="${GIT_ROOT}/.agent_workspace/${REPO_NAME}/_clone"
+```
+
+3. If `${CLONE_DIR}` already exists and is a git repo, ask the user: `"Existing clone found at ${CLONE_DIR}. Pull latest or use as-is?"`. If pull: run `git -C "${CLONE_DIR}" pull`. If as-is: continue.
+4. If `${CLONE_DIR}` does not exist, clone:
+
+```bash
+git clone --depth 1 "<URL>" "${CLONE_DIR}"
+```
+
+If the clone fails, STOP and report the error.
+
+5. Set `REPO_PATH="${CLONE_DIR}"`.
+
+**If the argument is a local path:**
 
 Validate:
 - The path exists and is a directory
@@ -37,7 +64,9 @@ If the path does not exist, STOP and report: `"Repository path not found: <path>
 
 Derive `REPO_NAME` from the basename of the repo path (e.g., `/home/user/my-project` → `my-project`).
 
-### 2. Set base path
+Set `REPO_PATH` to the resolved absolute path.
+
+### 3. Set base path
 
 ```bash
 GIT_ROOT="$(cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)" && pwd)"
@@ -45,7 +74,7 @@ BASE_PATH="${GIT_ROOT}/.agent_workspace/${REPO_NAME}"
 mkdir -p "${BASE_PATH}"
 ```
 
-### 3. Check for existing progress (resume)
+### 4. Check for existing progress (resume)
 
 Look for an existing progress file:
 
@@ -66,7 +95,7 @@ ${BASE_PATH}/workflow/learn-code_${REPO_NAME}.json
 
 **If not found**: create a new progress file (see below).
 
-### 4. Create progress file
+### 5. Create progress file
 
 ```json
 {
@@ -93,7 +122,7 @@ ${BASE_PATH}/workflow/learn-code_${REPO_NAME}.json
 
 Write to `${BASE_PATH}/workflow/learn-code_${REPO_NAME}.json`.
 
-### 5. Show analysis plan
+### 6. Show analysis plan
 
 Log:
 

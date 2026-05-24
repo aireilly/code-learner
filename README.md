@@ -21,6 +21,8 @@ Analyzes a codebase end-to-end and produces a structured onboarding guide.
 
 ```
 /code-learner:learn-code /path/to/repo
+/code-learner:learn-code https://github.com/user/repo
+/code-learner:learn-code git@github.com:user/repo.git
 /code-learner:learn-code /path/to/repo --exclude "vendor/*" "test/*"
 ```
 
@@ -36,13 +38,14 @@ Answers natural-language questions about a previously analyzed codebase. Dispatc
 
 ```
 /code-learner:query-code "How does authentication work?" --repo /path/to/repo
+/code-learner:query-code "How does authentication work?" --repo https://github.com/user/repo
 /code-learner:query-code "What modules depend on the database layer?"
 /code-learner:query-code "Where is the HTTP routing configured?"
 ```
 
 | Option | Description |
 |--------|-------------|
-| `--repo <path>` | Path to the repository (optional if only one analysis exists in `.agent_workspace/`) |
+| `--repo <path\|url>` | Path or git URL of the repository (optional if only one analysis exists in `.agent_workspace/`). Git URLs are cloned to `.agent_workspace/<repo-name>/_clone/`. |
 
 If no analysis exists for the specified repo, `query-code` offers to run `learn-code` first.
 

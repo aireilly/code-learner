@@ -1,26 +1,73 @@
 # code-learner
 
-Multi-phase codebase analysis plugin for engineer onboarding. Analyzes repository structure, module boundaries, cross-module relationships, and produces structured onboarding guides.
+Multi-phase codebase analysis plugin. Analyzes repository structure, module boundaries, cross-module relationships, and produces structured onboarding guides. Supports querying the analysis results with natural-language questions.
 
-## Usage
+## Setup
+
+Tree-sitter is used for AST-based code extraction (Go, JavaScript, TypeScript). Install dependencies:
+
+```bash
+cd /path/to/code-learner
+npm install
+```
+
+Python 3.10+ is required for the detection and module-mapping scripts (no pip dependencies).
+
+## Skills
+
+### learn-code
+
+Analyzes a codebase end-to-end and produces a structured onboarding guide.
 
 ```
-/code-learner:code-learner-start /path/to/repo
+/code-learner:learn-code /path/to/repo
+/code-learner:learn-code /path/to/repo --exclude "vendor/*" "test/*"
 ```
 
-### Options
+| Option | Description |
+|--------|-------------|
+| `--exclude <glob>...` | Glob patterns to exclude from analysis |
 
-- `--workflow quick` — Skip relationship analysis for faster results
-- `--lang <python|go|javascript|typescript>` — Override auto-detection
-- `--exclude <glob>...` — Exclude patterns (e.g., `--exclude "vendor/*" "test/*"`)
+The pipeline runs five steps sequentially, dispatching parallel agents where possible. Progress is tracked in a JSON file so interrupted runs can resume.
+
+### query-code
+
+Answers natural-language questions about a previously analyzed codebase. Dispatches an agent that reads the analysis output and can also inspect the actual source code to provide answers grounded with `file:line` references.
+
+```
+/code-learner:query-code "How does authentication work?" --repo /path/to/repo
+/code-learner:query-code "What modules depend on the database layer?"
+/code-learner:query-code "Where is the HTTP routing configured?"
+```
+
+| Option | Description |
+|--------|-------------|
+| `--repo <path>` | Path to the repository (optional if only one analysis exists in `.agent_workspace/`) |
+
+If no analysis exists for the specified repo, `query-code` offers to run `learn-code` first.
 
 ## Workflow Phases
 
-1. **Detection** — Detect primary language, walk file tree, read config files
-2. **Module Registry** — Produce per-module registry with tailored analysis questions
-3. **Module Analysis** — Fan-out one agent per module for deep analysis
-4. **Relationships** — Fan-out one agent per dependency pair for coupling analysis
-5. **Synthesis** — Combine all results into ONBOARDING.md
+The `learn-code` pipeline runs these five phases:
+
+| Phase | What happens | Agent dispatch |
+|-------|-------------|----------------|
+| **Detection** | Detect primary language, walk file tree, read config files | None (scripts only) |
+| **Module Registry** | Produce per-module registry with tailored analysis questions | 1 `repo-mapper` agent |
+| **Module Analysis** | Deep analysis of each module's public API, data flow, dependencies, and gotchas | N `module-analyzer` agents in parallel (one per module) |
+| **Relationships** | Cross-module coupling analysis — coupling types, shared types, implicit contracts | N `relationship-analyzer` agents in parallel (one per dependency pair) |
+| **Synthesis** | Combine all results into a structured ONBOARDING.md guide | 1 `synthesis-writer` agent |
+
+### AST extraction
+
+Before dispatching module and relationship agents, the pipeline pre-extracts each module's public API surface using full AST parsing:
+
+- **Python** — Python's `ast` module extracts functions, classes, methods, constants, and imports
+- **Go** — tree-sitter parses exported functions, methods, structs, interfaces, variables, constants, and imports
+- **JavaScript** — tree-sitter parses export statements (function, class, const, default, re-exports) and imports
+- **TypeScript** — tree-sitter parses all JS exports plus interfaces, type aliases, enums, and abstract classes
+
+This pre-extracted API surface is passed to agents alongside full source code, giving them a structured overview before they read the raw code.
 
 ## Output
 
@@ -28,16 +75,44 @@ All output goes to `.agent_workspace/<repo-name>/`:
 
 | Directory | Contents |
 |-----------|----------|
-| `detection/` | Language detection, module map |
-| `module-registry/` | Per-module registry with analysis questions |
-| `module-analysis/` | Per-module JSON analysis + combined summary |
-| `relationships/` | Cross-module coupling analysis + dependency graph |
-| `synthesis/` | Final ONBOARDING.md |
-| `workflow/` | Progress tracking JSON |
+| `detection/` | `detection.json` — language, module map, config file contents |
+| `module-registry/` | `registry.json` + `registry.md` — module purposes, complexity, analysis questions |
+| `module-analysis/` | Per-module `.json` files + `summary.json` + `summary.md` |
+| `relationships/` | `relationships.json` + `dependency-graph.json` + `relationships.md` |
+| `synthesis/` | `ONBOARDING.md` — the final onboarding guide |
+| `workflow/` | `learn-code_<repo>.json` — progress tracking for resume |
+
+## Agents
+
+| Agent | Role | Used by |
+|-------|------|---------|
+| `repo-mapper` | Maps repo structure to module registry without reading source | Module Registry step |
+| `module-analyzer` | Deep analysis of a single module (public API, data flow, gotchas) | Module Analysis step |
+| `relationship-analyzer` | Analyzes coupling between two modules | Relationships step |
+| `synthesis-writer` | Writes the final ONBOARDING.md from all analysis data | Synthesis step |
+| `code-questioner` | Answers questions using analysis data + direct source inspection | query-code skill |
 
 ## Supported Languages
 
-- Python (AST-aware via `ast` module)
-- Go (exported symbol detection via grep)
-- JavaScript (export extraction via regex)
-- TypeScript (export + type extraction via regex)
+| Language | AST method | Extracts |
+|----------|-----------|----------|
+| Python | `ast` module (stdlib) | Functions, classes, methods, constants, imports |
+| Go | tree-sitter (`web-tree-sitter`) | Functions, methods, structs, interfaces, variables, constants, imports |
+| JavaScript | tree-sitter (`web-tree-sitter`) | Exports (function, class, const, default, re-exports), imports, require() |
+| TypeScript | tree-sitter (`web-tree-sitter`) | All JS exports + interfaces, type aliases, enums, abstract classes |
+
+## Project Structure
+
+```
+code-learner/
+├── skills/
+│   ├── learn-code/           # Codebase analysis pipeline
+│   │   ├── SKILL.md          # Full pipeline specification
+│   │   └── scripts/          # Python + Node.js extraction scripts
+│   └── query-code/           # Natural-language querying
+│       └── SKILL.md
+├── agents/                   # Agent role definitions
+├── reference/                # Language configs + onboarding template
+├── package.json              # tree-sitter dependencies
+└── .claude-plugin/plugin.json
+```

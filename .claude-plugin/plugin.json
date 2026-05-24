@@ -1,7 +1,7 @@
 {
   "name": "code-learner",
-  "version": "0.1.0",
-  "description": "Multi-phase codebase analysis for engineer onboarding. Detects language, maps modules, analyzes each module in parallel, discovers cross-module relationships, and produces onboarding guides.",
+  "version": "0.2.0",
+  "description": "Multi-phase codebase analysis for engineer onboarding. Detects language, maps modules via AST, analyzes modules in parallel, discovers cross-module relationships, produces onboarding guides, and answers codebase questions.",
   "author": {
     "name": "Red Hat Documentation Team",
     "email": "aireilly@redhat.com"

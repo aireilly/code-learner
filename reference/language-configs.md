@@ -15,7 +15,7 @@ Per-language rules for module boundary detection, config files, coupling types, 
 
 - **Module boundary**: Directory containing `.go` files = one Go package. `go.mod` defines the module root.
 - **Config files**: `go.mod`, `go.sum`, `README.md`
-- **Public API**: Exported symbols start with an uppercase letter. Use `grep` for `^func [A-Z]`, `^type [A-Z]`, `^var [A-Z]`, `^const [A-Z]`.
+- **Public API**: Exported symbols start with an uppercase letter. AST-aware extraction via tree-sitter (functions, methods, types, structs, interfaces, variables, constants).
 - **Import signal**: `import` blocks reveal internal package dependencies.
 - **Coupling types**: `interface-contract`, `data-shape`, `config`, `embedding`, `channel`, `none`
 - **Special guidance**: Look for implicit interface satisfaction — a type in package A may implement an interface in package B without an explicit import.
@@ -25,7 +25,7 @@ Per-language rules for module boundary detection, config files, coupling types, 
 
 - **Module boundary**: Directory or feature slice under `src/`. `index.js` files define the public API boundary.
 - **Config files**: `package.json`, `README.md`
-- **Public API**: `export function`, `export class`, `export const`, `export default` statements.
+- **Public API**: AST-aware extraction via tree-sitter — `export function`, `export class`, `export const`, `export default`, re-exports.
 - **Import signal**: `import ... from` and `require()` statements reveal dependencies.
 - **Coupling types**: `data-shape`, `event`, `config`, `duck-typing`, `callback`, `none`
 - **Special guidance**: Look for duck-typing and callback shape assumptions between modules.
@@ -35,7 +35,7 @@ Per-language rules for module boundary detection, config files, coupling types, 
 
 - **Module boundary**: Directory or feature slice. `index.ts` barrel files + exported types define the public contract.
 - **Config files**: `package.json`, `tsconfig.json`, `README.md`
-- **Public API**: `export function`, `export class`, `export const`, `export default`, `export interface`, `export type`, `export enum` statements.
+- **Public API**: AST-aware extraction via tree-sitter — `export function`, `export class`, `export const`, `export default`, `export interface`, `export type`, `export enum`, abstract classes, re-exports.
 - **Import signal**: `import` and `import type` statements. Type-only imports reveal interface contracts.
 - **Coupling types**: `explicit-type-import`, `structural-subtype`, `data-shape`, `event`, `config`, `generic-constraint`, `none`
 - **Special guidance**: Pay special attention to structural subtyping — two modules may share a type shape without a direct import. `{ id: string; name: string }` in module A may satisfy `interface User` in module B with no shared import.

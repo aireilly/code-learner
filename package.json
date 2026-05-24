@@ -1,0 +1,13 @@
+{
+  "name": "code-learner",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Tree-sitter dependencies for code-learner Claude plugin",
+  "dependencies": {
+    "web-tree-sitter": "^0.24.0",
+    "tree-sitter-go": "^0.23.0",
+    "tree-sitter-javascript": "^0.23.0",
+    "tree-sitter-typescript": "^0.23.0"
+  }
+}

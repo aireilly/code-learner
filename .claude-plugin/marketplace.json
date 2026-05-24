@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "code-learner",
+  "version": "0.2.0",
+  "description": "Multi-phase codebase analysis. Detects language, maps modules via AST, analyzes modules in parallel, discovers cross-module relationships, produces onboarding guides, and answers codebase questions.",
+  "owner": {
+    "name": "Red Hat Documentation Team",
+    "email": "aireilly@redhat.com"
+  },
+  "plugins": [
+    {
+      "name": "code-learner",
+      "description": "Multi-phase codebase analysis for engineer onboarding with AST-based extraction and parallel agent dispatch",
+      "source": "./plugins/code-learner",
+      "category": "development"
+    }
+  ]
+}

@@ -536,14 +536,14 @@ Agent:
     LANGUAGE_GUIDANCE:
     <relevant section from language-configs.md>
 
-    Print your JSON result to stdout.
+    Write your JSON result to: <OUTPUT_DIR>/<mod_a>--<mod_b>.json
 ```
 
 **Critical**: All Agent tool calls MUST be in a single message for parallel execution.
 
 ### 4.7 Collect and merge results
 
-After all agents complete, collect results. For failed agents, create a fallback:
+After all agents complete, read each `<OUTPUT_DIR>/<mod_a>--<mod_b>.json` file. For failed agents or missing files, create a fallback:
 
 ```json
 {

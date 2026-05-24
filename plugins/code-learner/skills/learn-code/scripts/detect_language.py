@@ -40,6 +40,8 @@ SOURCE_EXTENSIONS = {
     ".mts": "typescript",
     ".cjs": "javascript",
     ".cts": "typescript",
+    ".yaml": "yaml",
+    ".yml": "yaml",
 }
 
 
@@ -68,7 +70,7 @@ def detect_language(repo_path: str, lang_override: str | None = None) -> dict:
         if lang:
             lang_counts[lang] += count
 
-    if lang_override and lang_override in ("python", "go", "javascript", "typescript"):
+    if lang_override and lang_override in ("python", "go", "javascript", "typescript", "yaml"):
         primary = lang_override
     elif lang_counts:
         primary = lang_counts.most_common(1)[0][0]

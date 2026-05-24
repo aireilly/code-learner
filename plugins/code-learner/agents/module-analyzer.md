@@ -1,7 +1,7 @@
 ---
 name: module-analyzer
 description: Deep analysis agent for a single codebase module. Receives full source and a targeted question. Returns structured JSON with purpose, public API, dependencies, data flow, gotchas, and onboarding priority.
-tools: Read, Bash, Grep
+tools: Read, Write, Bash, Grep
 maxTurns: 25
 ---
 

@@ -32,6 +32,7 @@ LANG_EXTENSIONS = {
     "go": {".go"},
     "javascript": {".js", ".jsx", ".mjs", ".cjs"},
     "typescript": {".ts", ".tsx", ".mts", ".cts"},
+    "yaml": {".yaml", ".yml"},
 }
 
 CONFIG_FILES = {
@@ -39,6 +40,7 @@ CONFIG_FILES = {
     "go": ["go.mod", "go.sum", "README.md"],
     "javascript": ["package.json", "README.md"],
     "typescript": ["package.json", "tsconfig.json", "README.md"],
+    "yaml": ["README.md"],
 }
 
 

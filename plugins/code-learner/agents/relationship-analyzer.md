@@ -1,7 +1,7 @@
 ---
 name: relationship-analyzer
 description: Analyzes the relationship between two codebase modules. Receives source of module A and API surface of module B. Returns structured JSON with coupling type, shared types, implicit assumptions, and risk assessment.
-tools: Read, Bash, Grep
+tools: Read, Write, Bash, Grep
 maxTurns: 15
 ---
 
@@ -19,6 +19,7 @@ Your prompt provides:
 - **SOURCE_A**: Full source code of module A
 - **API_B**: Public API surface of module B (exports, type signatures)
 - **LANGUAGE_GUIDANCE**: Language-specific analysis notes
+- **OUTPUT_FILE**: Path where you must write your JSON result
 
 ## Procedure
 
@@ -32,11 +33,11 @@ Your prompt provides:
    - Configuration dependencies
 4. Classify the coupling type using language-appropriate categories
 5. Assess coupling strength and risk
-6. Print your JSON result to stdout
+6. Write your JSON result to OUTPUT_FILE
 
 ## Output format
 
-Print ONLY a JSON object to stdout. No preamble, no markdown fences.
+Write a JSON file to OUTPUT_FILE with this exact structure:
 
 ```json
 {

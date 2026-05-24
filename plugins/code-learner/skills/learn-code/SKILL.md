@@ -305,7 +305,7 @@ Update progress file for `module-registry` step. Log: `"Registry complete: <modu
 
 ## Step 3 — Module Analysis
 
-Fan-out one module-analyzer agent per module. Each receives full source and a targeted question.
+Fan-out module-analyzer agents with size-aware tiering and batched dispatch.
 
 ### 3.1 Set paths
 
@@ -322,7 +322,25 @@ Read `${REGISTRY_FILE}` and `${DETECTION_FILE}`.
 
 Extract `primary_language`, module file lists from `detection.modules`, and registry entries.
 
-### 3.3 Pre-extract public API (AST-aware)
+### 3.3 Classify modules into tiers
+
+```bash
+python3 ${CLAUDE_SKILL_DIR}/scripts/classify_modules.py \
+  --detection "${DETECTION_FILE}" \
+  --registry "${REGISTRY_FILE}"
+```
+
+Capture the JSON output. This produces three tiers:
+
+| Tier | Criteria | Agent strategy |
+|------|----------|----------------|
+| `full` | ≤3000 lines, non-low complexity | Full source in prompt |
+| `api-guided` | 3001–8000 lines, or low-complexity multi-file | API + truncated source (first 2000 lines). Agent reads more from disk if needed |
+| `api-only` | >8000 lines, or auto-generated code, or single low-complexity file | No agent dispatch — generate entry from API + registry |
+
+Log: `"Module tiers: <full_count> full, <api_guided_count> api-guided, <api_only_count> api-only"`.
+
+### 3.4 Pre-extract public API (AST-aware)
 
 For each module, run the appropriate AST extraction script based on language:
 
@@ -344,9 +362,32 @@ node ${CLAUDE_SKILL_DIR}/scripts/extract_public_api_treesitter.mjs \
 
 Capture the JSON output for each module. If a script fails for a module, log a warning and continue without pre-extracted API data for that module.
 
-### 3.4 Load source for each module
+### 3.5 Generate api-only entries (no agent dispatch)
 
-For each module, concatenate all source files with file headers:
+For each module in the `api-only` tier, generate a summary entry directly from the pre-extracted API and registry data:
+
+```json
+{
+  "module": "<module-name>",
+  "language": "<primary_language>",
+  "purpose": "<purpose from registry>",
+  "public_api": "<from pre-extracted API, or empty>",
+  "dependencies": "<likely_imports from registry>",
+  "external_libs": [],
+  "data_flow": "See source for details",
+  "implicit_contracts": [],
+  "gotchas": [],
+  "onboarding_priority": "skim",
+  "question_answer": "API-only analysis — not deeply analyzed",
+  "analysis_depth": "api-only"
+}
+```
+
+Write each to `${OUTPUT_DIR}/<safe-module-name>.json`.
+
+### 3.6 Load source for agent-analyzed modules
+
+For each module in the `full` and `api-guided` tiers, concatenate source files with file headers:
 
 ```
 ### FILE: <relative-path>
@@ -357,9 +398,13 @@ Use absolute paths when reading files. Files are listed in `detection.modules.<m
 
 **Important**: Keep all import statements — they are the relationship signal consumed by the relationships step.
 
-### 3.5 Fan out module-analyzer agents
+For `api-guided` modules: truncate the concatenated source to the **first 2000 lines**. Append a note: `### [TRUNCATED — agent may Read additional files from REPO_PATH]`.
 
-Dispatch ALL `module-analyzer` agents in a **single message** for parallel execution. Each agent gets:
+### 3.7 Batch dispatch module-analyzer agents
+
+Group `full` and `api-guided` modules into batches of **max 10 agents per batch**. Dispatch each batch as a single message for parallel execution. Wait for the batch to complete before dispatching the next.
+
+Each agent gets:
 
 ```
 Agent:
@@ -381,11 +426,18 @@ Agent:
     Write your JSON result to: <OUTPUT_DIR>/<module-name>.json
 ```
 
-**Critical**: All Agent tool calls MUST be in a single message so they execute in parallel. Do NOT dispatch agents one at a time.
+For `api-guided` modules, add to the prompt:
 
-### 3.6 Collect and merge results
+```
+    REPO_PATH: <absolute path to repository>
+    NOTE: Source is truncated. Read additional files from REPO_PATH if needed to answer the question.
+```
 
-After all agents complete, read each `<OUTPUT_DIR>/<module-name>.json` file.
+**Critical**: All Agent tool calls within a single batch MUST be in a single message so they execute in parallel. Do NOT dispatch agents one at a time within a batch.
+
+### 3.8 Collect and merge results
+
+After all batches complete, read each `<OUTPUT_DIR>/<module-name>.json` file.
 
 For modules where the agent failed or produced invalid JSON, create a fallback entry:
 
@@ -405,11 +457,11 @@ For modules where the agent failed or produced invalid JSON, create a fallback e
 }
 ```
 
-### 3.7 Write summary.json
+### 3.9 Write summary.json
 
-Combine all module results (successful and fallback) into a single JSON array. Write to `${OUTPUT_DIR}/summary.json`.
+Combine all module results (api-only, agent-analyzed, and fallback) into a single JSON array. Write to `${OUTPUT_DIR}/summary.json`.
 
-### 3.8 Write summary.md
+### 3.10 Write summary.md
 
 Generate a human-readable summary:
 
@@ -420,6 +472,9 @@ Generate a human-readable summary:
 
 - **Language**: <primary_language>
 - **Modules analyzed**: <count>
+- **Full analysis**: <count>
+- **API-guided**: <count>
+- **API-only**: <count>
 - **Failed**: <count>
 
 ## Modules
@@ -428,6 +483,7 @@ Generate a human-readable summary:
 
 **Purpose**: <purpose>
 **Priority**: <onboarding_priority>
+**Analysis depth**: <full | api-guided | api-only>
 **Public API**: <comma-separated list>
 **Dependencies**: <comma-separated list>
 **Key gotcha**: <first gotcha or "None">
@@ -437,7 +493,7 @@ Generate a human-readable summary:
 
 Write to `${OUTPUT_DIR}/summary.md`.
 
-### 3.9 Write step-result.json
+### 3.11 Write step-result.json
 
 ```json
 {
@@ -447,6 +503,7 @@ Write to `${OUTPUT_DIR}/summary.md`.
   "completed_at": "<current ISO 8601 UTC>",
   "modules_analyzed": "<successful count>",
   "modules_failed": "<failed count>",
+  "tiers": { "full": "<count>", "api_guided": "<count>", "api_only": "<count>" },
   "total_public_api_entries": "<sum of public_api array lengths>",
   "languages": ["<primary_language>"]
 }
@@ -454,15 +511,15 @@ Write to `${OUTPUT_DIR}/summary.md`.
 
 Write to `${OUTPUT_DIR}/step-result.json`.
 
-### 3.10 Update progress
+### 3.12 Update progress
 
-Update progress file for `module-analysis` step. Log: `"Module analysis complete: <analyzed> modules (<failed> failures)"`.
+Update progress file for `module-analysis` step. Log: `"Module analysis complete: <analyzed> modules (full: N, api-guided: N, api-only: N, failed: N)"`.
 
 ---
 
 ## Step 4 — Relationships
 
-Cross-module dependency analysis. Fan-out one relationship-analyzer agent per dependency pair.
+Cross-module dependency analysis with prioritized pair selection and batched dispatch.
 
 ### 4.1 Set paths
 
@@ -488,11 +545,40 @@ python3 ${CLAUDE_SKILL_DIR}/scripts/build_dep_pairs.py \
 
 Capture JSON output. If `total_pairs` is 0, write empty results and step-result, then skip to Step 5.
 
-### 4.4 Prepare source data for each pair
+### 4.4 Prioritize pairs
 
-For each pair `(module_a, module_b)`:
+Classify each dependency pair as **priority** or **lightweight**:
 
-**Module A — full source**: Concatenate all source files with `### FILE:` headers.
+**Priority pairs** (max 20): At least one module in the pair has:
+- `complexity` of "high" in the registry, OR
+- `onboarding_priority` of "read-first" in the module analysis summary
+
+AND both modules have `analysis_depth` that is NOT "api-only" in the module analysis summary.
+
+Sort priority pairs by: pairs where both modules are "high" complexity first, then pairs with one "high" module.
+
+**Lightweight pairs**: All remaining pairs. Generate entries directly without agent dispatch:
+
+```json
+{
+  "pair": ["<module_a>", "<module_b>"],
+  "coupling_type": "interface-contract",
+  "description": "<module_a> depends on <module_b> (lightweight analysis)",
+  "shared_types": [],
+  "implicit_assumptions": [],
+  "risk": "See detailed analysis for core modules",
+  "strength": "loose",
+  "analysis_depth": "lightweight"
+}
+```
+
+Log: `"Relationship pairs: <priority_count> priority, <lightweight_count> lightweight (of <total> total)"`.
+
+### 4.5 Prepare source data for priority pairs
+
+For each priority pair `(module_a, module_b)`:
+
+**Module A source**: If module A has `total_lines` ≤ 3000, concatenate all source files with `### FILE:` headers. Otherwise, use the pre-extracted API surface and instruct the agent to read from disk.
 
 **Module B — API surface only**: Run the appropriate AST extraction script:
 
@@ -508,13 +594,13 @@ node ${CLAUDE_SKILL_DIR}/scripts/extract_public_api_treesitter.mjs \
   --files <b_files...> --lang <go|javascript|typescript> --module <module_b>
 ```
 
-### 4.5 Read language guidance
+### 4.6 Read language guidance
 
 Read language-specific relationship analysis guidance from `${CLAUDE_PLUGIN_ROOT}/reference/language-configs.md`.
 
-### 4.6 Fan out relationship-analyzer agents
+### 4.7 Batch dispatch relationship-analyzer agents
 
-Dispatch ALL `relationship-analyzer` agents in a **single message** for parallel execution:
+Group priority pairs into batches of **max 10 agents per batch**. Dispatch each batch as a single message for parallel execution. Wait for the batch to complete before dispatching the next.
 
 ```
 Agent:
@@ -527,8 +613,8 @@ Agent:
     MODULE_B: <mod_b>
     LANGUAGE: <primary_language>
 
-    SOURCE_A (full source):
-    <concatenated source of module A>
+    SOURCE_A (full source or API surface):
+    <concatenated source of module A, or API JSON + REPO_PATH for large modules>
 
     API_B (public API surface only):
     <JSON output from extract_public_api for module B>
@@ -536,14 +622,22 @@ Agent:
     LANGUAGE_GUIDANCE:
     <relevant section from language-configs.md>
 
+    REPO_PATH: <absolute path to repository>
+
     Write your JSON result to: <OUTPUT_DIR>/<mod_a>--<mod_b>.json
 ```
 
-**Critical**: All Agent tool calls MUST be in a single message for parallel execution.
+For large module A (>3000 lines), add to the prompt:
 
-### 4.7 Collect and merge results
+```
+    NOTE: Module A source is provided as API surface only. Read files from REPO_PATH/<module_a_path>/ as needed.
+```
 
-After all agents complete, read each `<OUTPUT_DIR>/<mod_a>--<mod_b>.json` file. For failed agents or missing files, create a fallback:
+**Critical**: All Agent tool calls within a single batch MUST be in a single message for parallel execution.
+
+### 4.8 Collect and merge results
+
+After all batches complete, read each `<OUTPUT_DIR>/<mod_a>--<mod_b>.json` file. For failed agents or missing files, create a fallback:
 
 ```json
 {
@@ -557,11 +651,13 @@ After all agents complete, read each `<OUTPUT_DIR>/<mod_a>--<mod_b>.json` file. 
 }
 ```
 
-### 4.8 Write relationships.json
+Combine agent results with the lightweight entries from step 4.4.
 
-Write the array of all relationship results to `${OUTPUT_DIR}/relationships.json`.
+### 4.9 Write relationships.json
 
-### 4.9 Write dependency-graph.json
+Write the array of all relationship results (priority + lightweight) to `${OUTPUT_DIR}/relationships.json`.
+
+### 4.10 Write dependency-graph.json
 
 Build a graph structure from the summaries and relationships:
 
@@ -578,7 +674,7 @@ Build a graph structure from the summaries and relationships:
 
 Write to `${OUTPUT_DIR}/dependency-graph.json`.
 
-### 4.10 Write relationships.md
+### 4.11 Write relationships.md
 
 Generate a human-readable summary:
 
@@ -587,7 +683,8 @@ Generate a human-readable summary:
 
 ## Summary
 
-- **Pairs analyzed**: <count>
+- **Pairs analyzed (agent)**: <priority_count>
+- **Pairs (lightweight)**: <lightweight_count>
 - **Tight couplings**: <count>
 - **Loose couplings**: <count>
 
@@ -609,7 +706,7 @@ Generate a human-readable summary:
 
 Write to `${OUTPUT_DIR}/relationships.md`.
 
-### 4.11 Write step-result.json
+### 4.12 Write step-result.json
 
 ```json
 {
@@ -617,7 +714,8 @@ Write to `${OUTPUT_DIR}/relationships.md`.
   "step": "relationships",
   "target": "<repo-name>",
   "completed_at": "<current ISO 8601 UTC>",
-  "pairs_analyzed": "<successful count>",
+  "pairs_analyzed": "<priority count>",
+  "pairs_lightweight": "<lightweight count>",
   "pairs_failed": "<failed count>",
   "coupling_distribution": { "tight": "<count>", "loose": "<count>", "none": "<count>" }
 }
@@ -625,9 +723,9 @@ Write to `${OUTPUT_DIR}/relationships.md`.
 
 Write to `${OUTPUT_DIR}/step-result.json`.
 
-### 4.12 Update progress
+### 4.13 Update progress
 
-Update progress file for `relationships` step. Log: `"Relationship analysis complete: <pairs_analyzed> pairs (tight: N, loose: N, none: N)"`.
+Update progress file for `relationships` step. Log: `"Relationship analysis complete: <priority_count> priority + <lightweight_count> lightweight pairs (tight: N, loose: N, none: N)"`.
 
 ---
 
@@ -645,12 +743,20 @@ mkdir -p "$OUTPUT_DIR"
 ### 5.2 Build synthesis context
 
 ```bash
-python3 ${CLAUDE_SKILL_DIR}/scripts/build_synthesis_context.py --base-path "${BASE_PATH}"
+python3 ${CLAUDE_SKILL_DIR}/scripts/build_synthesis_context.py \
+  --base-path "${BASE_PATH}" \
+  --max-size 80000 > "${OUTPUT_DIR}/context.json"
 ```
 
-Capture the JSON output. If it contains an `error` field, STOP and report the error.
+If the output contains an `error` field, STOP and report the error.
+
+The `--max-size 80000` flag ensures the context stays within agent context limits by progressively compacting summaries and relationships.
+
+Log: `"Synthesis context: <context_size_bytes> bytes (truncated: <truncated or 'no'>)"`.
 
 ### 5.3 Dispatch synthesis-writer agent
+
+The context is always written to a file. The synthesis agent reads it from disk rather than receiving it inline.
 
 ```
 Agent:
@@ -659,8 +765,7 @@ Agent:
   prompt: |
     Write an engineer onboarding guide for this codebase.
 
-    CONTEXT:
-    <JSON output from build_synthesis_context.py>
+    Read the full context from: ${OUTPUT_DIR}/context.json
 
     OUTPUT_DIR: <OUTPUT_DIR>
 

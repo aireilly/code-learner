@@ -1,13 +1,18 @@
 # code-learner
 
-Multi-phase codebase analysis plugin. Analyzes repository structure, module boundaries, cross-module relationships, and produces structured onboarding guides. Supports querying the analysis results with natural-language questions.
+Claude Code plugin marketplace for codebase analysis and onboarding. Analyzes repository structure, module boundaries, cross-module relationships, and produces structured onboarding guides.
 
-## Setup
+## Installation
+
+```bash
+claude marketplace add aireilly/code-learner
+claude plugin install code-learner@code-learner
+```
 
 Tree-sitter is used for AST-based code extraction (Go, JavaScript, TypeScript). Install dependencies:
 
 ```bash
-cd /path/to/code-learner
+cd plugins/code-learner
 npm install
 ```
 
@@ -107,15 +112,19 @@ All output goes to `.agent_workspace/<repo-name>/`:
 ## Project Structure
 
 ```
-code-learner/
-├── skills/
-│   ├── learn-code/           # Codebase analysis pipeline
-│   │   ├── SKILL.md          # Full pipeline specification
-│   │   └── scripts/          # Python + Node.js extraction scripts
-│   └── query-code/           # Natural-language querying
-│       └── SKILL.md
-├── agents/                   # Agent role definitions
-├── reference/                # Language configs + onboarding template
-├── package.json              # tree-sitter dependencies
-└── .claude-plugin/plugin.json
+code-learner/                        # Marketplace root
+├── plugins/
+│   └── code-learner/                # Plugin
+│       ├── .claude-plugin/plugin.json
+│       ├── skills/
+│       │   ├── learn-code/          # Codebase analysis pipeline
+│       │   │   ├── SKILL.md
+│       │   │   └── scripts/         # Python + Node.js extraction scripts
+│       │   └── query-code/          # Natural-language querying
+│       │       └── SKILL.md
+│       ├── agents/                  # Agent role definitions
+│       ├── reference/               # Language configs + onboarding template
+│       └── package.json             # tree-sitter dependencies
+├── README.md
+└── .gitignore
 ```

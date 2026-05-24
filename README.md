@@ -35,7 +35,7 @@ Analyzes a codebase end-to-end and produces a structured onboarding guide.
 |--------|-------------|
 | `--exclude <glob>...` | Glob patterns to exclude from analysis |
 
-The pipeline runs five steps sequentially, dispatching parallel agents where possible. Progress is tracked in a JSON file so interrupted runs can resume.
+The pipeline runs five steps sequentially, dispatching parallel agents in batches of up to 10. Modules are classified into analysis tiers (full source, API-guided, or API-only) based on size and complexity to stay within agent context limits. Progress is tracked in a JSON file so interrupted runs can resume.
 
 ### query-code
 
@@ -62,9 +62,9 @@ The `learn-code` pipeline runs these five phases:
 |-------|-------------|----------------|
 | **Detection** | Detect primary language, walk file tree, read config files | None (scripts only) |
 | **Module Registry** | Produce per-module registry with tailored analysis questions | 1 `repo-mapper` agent |
-| **Module Analysis** | Deep analysis of each module's public API, data flow, dependencies, and gotchas | N `module-analyzer` agents in parallel (one per module) |
-| **Relationships** | Cross-module coupling analysis — coupling types, shared types, implicit contracts | N `relationship-analyzer` agents in parallel (one per dependency pair) |
-| **Synthesis** | Combine all results into a structured ONBOARDING.md guide | 1 `synthesis-writer` agent |
+| **Module Analysis** | Deep analysis of each module's public API, data flow, dependencies, and gotchas. Modules are classified into tiers (full/api-guided/api-only) based on size and complexity | Batches of up to 10 `module-analyzer` agents in parallel. API-only modules generate summaries without agent dispatch |
+| **Relationships** | Cross-module coupling analysis — coupling types, shared types, implicit contracts. Priority pairs (max 20) get agent analysis; remaining pairs get lightweight entries | Batches of up to 10 `relationship-analyzer` agents in parallel |
+| **Synthesis** | Combine all results into a structured ONBOARDING.md guide. Context is budgeted to 80KB with progressive truncation | 1 `synthesis-writer` agent |
 
 ### AST extraction
 
@@ -87,7 +87,7 @@ All output goes to `.agent_workspace/<repo-name>/`:
 | `module-registry/` | `registry.json` + `registry.md` — module purposes, complexity, analysis questions |
 | `module-analysis/` | Per-module `.json` files + `summary.json` + `summary.md` |
 | `relationships/` | `relationships.json` + `dependency-graph.json` + `relationships.md` |
-| `synthesis/` | `ONBOARDING.md` — the final onboarding guide |
+| `synthesis/` | `ONBOARDING.md` — the final onboarding guide, `context.json` — budgeted synthesis context |
 | `workflow/` | `learn-code_<repo>.json` — progress tracking for resume |
 
 ## Agents
@@ -119,7 +119,7 @@ code-learner/                        # Marketplace root
 │       ├── skills/
 │       │   ├── learn-code/          # Codebase analysis pipeline
 │       │   │   ├── SKILL.md
-│       │   │   └── scripts/         # Python + Node.js extraction scripts
+│       │   │   └── scripts/         # Python + Node.js extraction/classification scripts
 │       │   └── query-code/          # Natural-language querying
 │       │       └── SKILL.md
 │       ├── agents/                  # Agent role definitions

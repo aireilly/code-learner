@@ -130,7 +130,26 @@ The repo path is needed so the agent can inspect actual source files. Determine 
 
 If none of these yield a valid path, warn the user that file:line references may not be available.
 
-### 6. Dispatch code-questioner agent
+### 6. Set output path
+
+```bash
+OUTPUT_DIR="${BASE_PATH}/queries"
+mkdir -p "$OUTPUT_DIR"
+```
+
+Generate a filename slug from the question:
+1. Lowercase the question
+2. Replace spaces and non-alphanumeric characters (except hyphens) with hyphens
+3. Collapse consecutive hyphens into one
+4. Strip leading and trailing hyphens
+5. Truncate to 60 characters
+6. Append `_<YYYYMMDD-HHMMSS>.md` using the current UTC time
+
+Example: `"How do the Tekton PipelineRuns get triggered?"` → `how-do-the-tekton-pipelineruns-get-triggered_20260524-180000.md`
+
+Set `OUTPUT_FILE="${OUTPUT_DIR}/<slug>.md"`.
+
+### 7. Dispatch code-questioner agent
 
 ```
 Agent:
@@ -148,11 +167,28 @@ Agent:
     <full contents of ONBOARDING.md>
 
     REPO_PATH: <absolute path to the repository>
+    OUTPUT_FILE: <OUTPUT_FILE>
 
     You may Read and Grep files in REPO_PATH to find specific code evidence.
     Always include file:line references when citing specific code.
+    Write your answer as markdown (with YAML frontmatter) to OUTPUT_FILE.
 ```
 
-### 7. Present answer
+### 8. Verify and present answer
 
-Display the agent's response directly to the user. No file writing is needed — this is a query-only operation.
+After the agent completes:
+
+1. Verify `${OUTPUT_FILE}` was written. If the agent failed to write it, write the agent's response yourself to `${OUTPUT_FILE}` with YAML frontmatter:
+
+```markdown
+---
+question: "<original question>"
+repo: "<REPO_NAME>"
+date: "<current ISO 8601 UTC>"
+---
+
+<agent's response>
+```
+
+2. Display the answer to the user.
+3. Log: `"Answer saved to <OUTPUT_FILE>"`.

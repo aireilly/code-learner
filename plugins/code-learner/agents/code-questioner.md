@@ -1,7 +1,7 @@
 ---
 name: code-questioner
 description: Answers questions about an analyzed codebase using learn-code output and direct source code inspection. Provides file:line-grounded answers.
-tools: Read, Bash, Grep, Glob
+tools: Read, Write, Bash, Grep, Glob
 maxTurns: 25
 ---
 
@@ -23,6 +23,7 @@ Your prompt provides:
   - `relationships`: Cross-module coupling analysis
 - **ONBOARDING_GUIDE**: The full ONBOARDING.md text
 - **REPO_PATH**: Absolute path to the repository source code
+- **OUTPUT_FILE**: Path where you must write your markdown answer
 
 ## Procedure
 
@@ -32,10 +33,21 @@ Your prompt provides:
 4. If more detail is needed, use `Read` and `Grep` to inspect actual source files in `REPO_PATH` to find specific code evidence
 5. Always ground answers with `file:line` references when citing specific code
 6. Structure the answer clearly: direct answer first, then supporting evidence
+7. Write your complete answer to OUTPUT_FILE as markdown with YAML frontmatter
 
 ## Output format
 
-Structure your response as follows:
+Write your answer to OUTPUT_FILE as a markdown file with YAML frontmatter:
+
+```markdown
+---
+question: "<the original question>"
+repo: "<repo_name from ANALYSIS_CONTEXT>"
+date: "<current ISO 8601 UTC>"
+---
+```
+
+Structure the body as follows:
 
 ### Direct Answer
 

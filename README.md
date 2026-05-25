@@ -8,7 +8,10 @@ Claude Code plugin for codebase analysis, onboarding, and pull request understan
 ## Installation
 
 ```bash
-claude marketplace add aireilly/code-learner
+# Add the marketplace
+claude plugin marketplace add https://github.com/aireilly/code-learner.git
+
+# Install the plugin
 claude plugin install code-learner@code-learner
 ```
 
@@ -64,7 +67,6 @@ Analyzes a pull request or merge request. Fetches PR metadata, identifies affect
 ```
 /code-learner:understand-pull-request 42
 /code-learner:understand-pull-request 42 --repo /path/to/repo
-/code-learner:understand-pull-request 42 --platform gitlab
 /code-learner:understand-pull-request https://github.com/org/repo/pull/42
 /code-learner:understand-pull-request https://gitlab.com/org/repo/-/merge_requests/42
 ```
@@ -72,7 +74,6 @@ Analyzes a pull request or merge request. Fetches PR metadata, identifies affect
 | Option | Description |
 |--------|-------------|
 | `--repo <path>` | Path to the local repository checkout (defaults to current directory) |
-| `--platform <github\|gitlab>` | Force platform detection (auto-detected from git remote URL) |
 
 The pipeline runs four steps: **PR Metadata** (fetch via CLI), **Repo Context** (language detection + repo overview), **Change Analysis** (fan-out agents per affected module), and **Synthesis** (produce final document). If a prior `learn-code` analysis exists, the repo overview is reused from `ONBOARDING.md`. PR descriptions and commit messages are used as context but the code changes are treated as authoritative.
 

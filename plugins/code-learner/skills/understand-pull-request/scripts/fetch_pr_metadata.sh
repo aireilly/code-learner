@@ -23,9 +23,21 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$PLATFORM" || -z "$PR_NUMBER" || -z "$REPO_PATH" ]]; then
-  echo '{"error": "Required arguments: --platform <github|gitlab> --pr <number> --repo-path <path>"}'
+if [[ -z "$PR_NUMBER" || -z "$REPO_PATH" ]]; then
+  echo '{"error": "Required arguments: --pr <number> --repo-path <path>"}'
   exit 1
+fi
+
+# Auto-detect platform from git remote if not provided
+if [[ -z "$PLATFORM" ]]; then
+  REMOTE_URL=$(git -C "$REPO_PATH" remote get-url origin 2>/dev/null || echo "")
+  if [[ "$REMOTE_URL" == *"github.com"* ]]; then
+    PLATFORM="github"
+  elif [[ "$REMOTE_URL" == *"gitlab"* ]]; then
+    PLATFORM="gitlab"
+  else
+    error_exit "Cannot detect platform from git remote URL. Ensure the repository has a GitHub or GitLab origin remote."
+  fi
 fi
 
 cd "$REPO_PATH" || { echo "{\"error\": \"Cannot cd to $REPO_PATH\"}"; exit 1; }

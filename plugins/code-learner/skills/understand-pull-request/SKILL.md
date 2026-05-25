@@ -1,7 +1,7 @@
 ---
 name: understand-pull-request
 description: Analyze a pull request or merge request. Fetches PR metadata via gh/glab CLI, identifies affected modules, analyzes changes in context, and produces a PR-ANALYSIS.md document with a brief repo overview and detailed change analysis.
-argument-hint: <pr-number-or-url> [--repo <path>] [--platform <github|gitlab>]
+argument-hint: <pr-number-or-url> [--repo <path>]
 allowed-tools: Read, Write, Bash, Glob, Grep, Agent
 ---
 
@@ -14,7 +14,6 @@ Fetches PR/MR metadata, identifies affected modules, analyzes changes in each mo
 ```
 /code-learner:understand-pull-request 42
 /code-learner:understand-pull-request 42 --repo /path/to/repo
-/code-learner:understand-pull-request 42 --platform gitlab
 /code-learner:understand-pull-request https://github.com/org/repo/pull/42
 /code-learner:understand-pull-request https://gitlab.com/org/repo/-/merge_requests/42
 ```
@@ -26,24 +25,22 @@ Fetches PR/MR metadata, identifies affected modules, analyzes changes in each mo
   - A GitHub PR URL: `https://github.com/org/repo/pull/42`
   - A GitLab MR URL: `https://gitlab.com/org/repo/-/merge_requests/42`
 - `--repo <path>` — Path to the local repository checkout (optional, defaults to current working directory)
-- `--platform <github|gitlab>` — Force platform detection (optional, auto-detected from git remote URL)
 
 ## Pre-flight
 
 ### 1. Parse and validate arguments
 
-Extract the PR reference from the first positional argument. Extract optional `--repo` and `--platform` values.
+Extract the PR reference from the first positional argument. Extract optional `--repo` value.
 
 **If the argument is a URL:**
 
-- GitHub URL (contains `/pull/`): extract the PR number from the URL path. If `--repo` is not provided, try to find the repo locally or warn the user.
-- GitLab URL (contains `/-/merge_requests/`): extract the MR number from the URL path.
-- Set `--platform` automatically from the URL if not explicitly provided.
+- GitHub URL (contains `/pull/`): extract the PR number from the URL path. Set `PLATFORM=github`. If `--repo` is not provided, try to find the repo locally or warn the user.
+- GitLab URL (contains `/-/merge_requests/`): extract the MR number from the URL path. Set `PLATFORM=gitlab`.
 
 **If the argument is a bare number:**
 
 - Use it as `PR_NUMBER`.
-- Platform must be detected from git remote or provided via `--platform`.
+- Platform is detected automatically from the git remote URL (see step 3).
 
 ### 2. Resolve repository path
 
@@ -61,9 +58,9 @@ Derive `REPO_NAME` from the basename of the repo path.
 
 ### 3. Detect platform
 
-**If `--platform` is provided:** use it directly.
+**If `PLATFORM` was already set from a URL argument (step 1):** use it directly.
 
-**If `--platform` is NOT provided:**
+**Otherwise**, detect from the git remote:
 
 ```bash
 REMOTE_URL=$(git -C "${REPO_PATH}" remote get-url origin 2>/dev/null || echo "")
@@ -71,7 +68,7 @@ REMOTE_URL=$(git -C "${REPO_PATH}" remote get-url origin 2>/dev/null || echo "")
 
 - If `REMOTE_URL` contains `github.com`: set `PLATFORM=github`
 - If `REMOTE_URL` contains `gitlab`: set `PLATFORM=gitlab`
-- Otherwise: STOP and report: `"Cannot detect platform from git remote. Use --platform <github|gitlab>."`.
+- Otherwise: STOP and report: `"Cannot detect platform from git remote URL. Ensure the repository has a GitHub or GitLab origin remote."`.
 
 ### 4. Validate CLI tool
 

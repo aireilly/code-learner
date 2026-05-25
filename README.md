@@ -15,14 +15,10 @@ claude plugin marketplace add https://github.com/aireilly/code-learner.git
 claude plugin install code-learner@code-learner
 ```
 
-Tree-sitter is used for AST-based code extraction (Go, JavaScript, TypeScript). Install dependencies:
+### Prerequisites
 
-```bash
-cd plugins/code-learner
-npm install
-```
-
-Python 3.10+ is required for the detection and module-mapping scripts (no pip dependencies).
+- **Node.js** — required for Go, JavaScript, and TypeScript AST extraction (tree-sitter dependencies are installed automatically by the plugin installer)
+- **Python 3.10+** — required for detection and module-mapping scripts (no pip dependencies)
 
 ## Skills
 

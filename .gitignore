@@ -1,3 +1,4 @@
 node_modules/
 .claude/
 .agent_workspace/
+__pycache__/

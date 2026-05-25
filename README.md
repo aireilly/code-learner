@@ -2,6 +2,9 @@
 
 Claude Code plugin for codebase analysis, onboarding, and pull request understanding. Analyzes repository structure, module boundaries, cross-module relationships, produces structured onboarding guides, and generates detailed PR/MR analysis documents.
 
+<img width="600" alt="image" src="https://github.com/user-attachments/assets/c22eb7fd-6458-41af-b399-6dc3016af6a1" />
+
+
 ## Installation
 
 ```bash
